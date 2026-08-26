@@ -292,6 +292,24 @@ input.inp{display:block; font-family:inherit; outline:none}
 input.note-inp{color:var(--ink); font-family:inherit; outline:none}
 input.note-inp::placeholder{color:#a9b3c1}
 .empty-note{color:var(--muted); font-size:15px; padding:14px 0}
+
+/* ---------- phase-2: photo + OCR ---------- */
+/* .inp stays the styled flex box from the mockup; the real control sits inside
+   it, borderless, so the "AI" chip can keep its place on the right. */
+.inp input.bare,.inp select.bare{
+  flex:1; min-width:0; border:0; outline:none; background:transparent;
+  font:inherit; color:inherit; padding:0; margin:0; border-radius:0;
+  -webkit-appearance:none; appearance:none;
+}
+.inp input.bare::placeholder{color:#c3cbd6; font-weight:600}
+.inp select.bare:invalid{color:#c3cbd6}
+#h2Img{max-width:100%; max-height:100%; object-fit:contain; display:block; image-orientation:from-image}
+.spin{
+  display:inline-block; width:15px; height:15px; margin-right:9px; vertical-align:-2px;
+  border:3px solid #f0dfae; border-top-color:#8a6100; border-radius:50%;
+  animation:hw-spin .8s linear infinite;
+}
+@keyframes hw-spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -343,11 +361,74 @@ input.note-inp::placeholder{color:#a9b3c1}
     <div class="check-note hidden" id="h1Recon">🗓️ Sunday check — count your wallet</div>
     <div class="check-note hidden" id="h1Err">Cannot reach the server. Pull down to try again.</div>
 
-    <button class="big-btn btn-snap" id="btnSnap" disabled><span class="ico">📷</span> Photo — coming soon</button>
+    <button class="big-btn btn-snap" id="btnSnap" onclick="openCamera()"><span class="ico">📷</span> SNAP RECEIPT</button>
     <button class="big-btn btn-manual" onclick="openManual()"><span class="ico">✏️</span> NO RECEIPT</button>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
 
     <div class="section-title">Today</div>
     <div id="h1List"><div class="empty-note">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ================= H2 · RECEIPT REVIEW ================= -->
+<div class="phone helper scr hidden" id="H2">
+  <div class="appbar"><span class="back" onclick="cancelPhoto()">←</span><div><h1>Your receipt</h1><div class="sub">Photo taken</div></div></div>
+  <div class="body">
+    <div class="photo" id="h2Photo"><img id="h2Img" alt=""></div>
+
+    <div class="check-note" id="h2Reading"><span class="spin"></span>Reading receipt…</div>
+
+    <div id="h2Form" class="hidden">
+      <div class="check-note" id="h2Check">✓ Please check. Fix if wrong.</div>
+
+      <div class="field"><label>Shop</label>
+        <div class="inp">
+          <input class="bare" id="h2Store" maxlength="60" placeholder="Shop name" autocomplete="off">
+          <span class="ai hidden" id="h2StoreAi">AI</span>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div class="field"><label>Date</label>
+          <div class="inp">
+            <input class="bare" type="date" id="h2Date">
+            <span class="ai hidden" id="h2DateAi">AI</span>
+          </div>
+        </div>
+        <div class="field"><label>Money</label>
+          <div class="inp">
+            <input class="bare" id="h2Amt" inputmode="decimal" placeholder="HK$" autocomplete="off">
+            <span class="ai hidden" id="h2AmtAi">AI</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field"><label>What is it?</label>
+        <div class="inp">
+          <select class="bare" id="h2Cat" required>
+            <option value="">Choose…</option>
+            <option value="Food">🍜 Food</option>
+            <option value="Market">🥬 Market</option>
+            <option value="Household">🧻 Household</option>
+            <option value="Pets">🐕 Pets</option>
+            <option value="Transport">🚌 Transport</option>
+            <option value="Other">📦 Other</option>
+          </select>
+          <span class="ai hidden" id="h2CatAi">AI</span>
+        </div>
+      </div>
+
+      <label style="display:block;font-size:14px;color:var(--muted);font-weight:700;margin-bottom:2px">Who is it for?</label>
+      <div class="toggle2" id="h2Split">
+        <button class="on" data-split="home" onclick="pick(this)"><span class="ico">🏠</span>Home food</button>
+        <button data-split="helper_own" onclick="pick(this)"><span class="ico">👩</span>My food</button>
+      </div>
+
+      <input class="note-inp" id="h2Note" placeholder="Note (not must)" maxlength="120">
+
+      <div class="check-note hidden" id="h2Err"></div>
+      <button class="submit" id="h2Submit" onclick="submitPhoto()" disabled>SUBMIT</button>
+    </div>
   </div>
 </div>
 
@@ -393,6 +474,7 @@ input.note-inp::placeholder{color:#a9b3c1}
     <div class="tick">✓</div>
     <h2>Saved!</h2>
     <div class="left">Cash left<b id="h4Balance">HK$ —</b></div>
+    <div class="check-note hidden" id="h4Photo" style="margin:18px 0 0"></div>
     <div class="hint">Going back to home in 3 seconds…</div>
     <button class="again" onclick="go('H1')">Back now</button>
   </div>
@@ -444,15 +526,18 @@ function clearSession(){
  * Anything else triggers a CORS preflight OPTIONS, which Apps Script cannot
  * answer — the request then fails before it ever reaches doPost.
  * =========================================================================*/
-async function api(action, payload){
-  const res = await fetch(API, {
+async function api(action, payload, opts){
+  const init = {
     method: "POST",
     headers: {"Content-Type": "text/plain;charset=utf-8"},
     body: JSON.stringify(Object.assign(
       { action: action, token: session ? session.token : "" },
       payload || {}
     ))
-  });
+  };
+  if(opts && opts.signal) init.signal = opts.signal;
+
+  const res = await fetch(API, init);
 
   const text = await res.text();
   let out;
@@ -641,6 +726,355 @@ async function loadHome(){
 }
 
 /* ===========================================================================
+ * PHOTO PIPELINE
+ * ---------------------------------------------------------------------------
+ * iPhone notes, all learned the hard way:
+ *  - "capture" is a hint, not a command. iOS still shows a chooser. Fine.
+ *  - iPhone photos carry EXIF orientation and arrive sideways in a canvas.
+ *    Receipts read as rotated text and OCR accuracy falls off a cliff, so the
+ *    rotation is baked in before re-encoding.
+ *  - Hold the File object until submit succeeds; iOS reclaims object URLs.
+ * =========================================================================*/
+
+/* [maxLongestSide, jpegQuality] — tried in order until it fits. */
+const COMPRESS_STEPS = [[1600, 0.7], [1200, 0.6], [1000, 0.5]];
+const MAX_B64_CHARS = 5000000;
+const OCR_TIMEOUT_MS = 25000;
+
+function readAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error("Cannot read the photo."));
+    fr.readAsDataURL(file);
+  });
+}
+
+function loadImage(dataUrl){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Cannot open the photo."));
+    img.src = dataUrl;
+  });
+}
+
+/** Decode just the head of the base64 — EXIF lives in the first APP1 segment. */
+function base64Head(b64, maxChars){
+  const head = b64.slice(0, maxChars - (maxChars % 4));
+  const bin = atob(head);
+  const buf = new ArrayBuffer(bin.length);
+  const view = new Uint8Array(buf);
+  for(let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+/** EXIF orientation, 1 if absent or unreadable. Only 3/6/8 need correcting. */
+function exifOrientation(buffer){
+  try{
+    const view = new DataView(buffer);
+    if(view.byteLength < 4 || view.getUint16(0, false) !== 0xFFD8) return 1;  // not a JPEG
+
+    let offset = 2;
+    while(offset + 4 < view.byteLength){
+      const marker = view.getUint16(offset, false);
+      offset += 2;
+
+      if(marker === 0xFFE1){                                   // APP1
+        if(view.getUint32(offset + 2, false) !== 0x45786966) return 1;  // "Exif"
+        const tiff = offset + 8;
+        const little = view.getUint16(tiff, false) === 0x4949;
+        const dirStart = tiff + view.getUint32(tiff + 4, little);
+        const tags = view.getUint16(dirStart, little);
+
+        for(let i = 0; i < tags; i++){
+          const entry = dirStart + 2 + i * 12;
+          if(entry + 12 > view.byteLength) break;
+          if(view.getUint16(entry, little) === 0x0112){         // Orientation
+            return view.getUint16(entry + 8, little);
+          }
+        }
+        return 1;
+      }
+      if((marker & 0xFF00) !== 0xFF00) break;
+      const segLen = view.getUint16(offset, false);
+      if(segLen < 2) break;                    // malformed; would never advance
+      offset += segLen;
+    }
+  }catch(e){ /* malformed EXIF is not worth failing over */ }
+  return 1;
+}
+
+/** Draw at most `maxSide` on the longest edge, with the EXIF rotation applied. */
+function encode(img, orientation, maxSide, quality){
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const swap = (orientation === 6 || orientation === 8);   // 90° either way
+
+  const dw = swap ? h : w;
+  const dh = swap ? w : h;
+  const scale = Math.min(1, maxSide / Math.max(dw, dh));
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = Math.max(1, Math.round(dw * scale));
+  canvas.height = Math.max(1, Math.round(dh * scale));
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  switch(orientation){
+    case 3: ctx.translate(canvas.width, canvas.height); ctx.rotate(Math.PI); break;
+    case 6: ctx.translate(canvas.width, 0);             ctx.rotate(Math.PI / 2); break;
+    case 8: ctx.translate(0, canvas.height);            ctx.rotate(-Math.PI / 2); break;
+  }
+
+  // After a 90° turn the drawing box is the canvas with its sides swapped back.
+  ctx.drawImage(img, 0, 0,
+    swap ? canvas.height : canvas.width,
+    swap ? canvas.width  : canvas.height);
+
+  return canvas.toDataURL("image/jpeg", quality).split(",")[1] || "";
+}
+
+/**
+ * -> base64 (no data: prefix), or null if even the smallest step is too big.
+ */
+async function compressPhoto(file){
+  const dataUrl = await readAsDataURL(file);
+  const rawB64 = String(dataUrl).split(",")[1] || "";
+  const orientation = exifOrientation(base64Head(rawB64, 131072));
+  const img = await loadImage(dataUrl);
+
+  for(const [side, quality] of COMPRESS_STEPS){
+    const b64 = encode(img, orientation, side, quality);
+    if(b64 && b64.length <= MAX_B64_CHARS) return b64;
+  }
+  return null;
+}
+
+/* ===========================================================================
+ * H2 · RECEIPT REVIEW
+ * =========================================================================*/
+let h2File = null;      // held until submit succeeds — see the iOS note above
+let h2ObjUrl = null;
+let h2B64 = null;
+let h2Ocr = null;       // what OCR gave us, for the "did she keep it?" check
+let h2Ref = null;
+let h2Submitting = false;
+
+function h2Error(msg){
+  $("h2Err").textContent = msg;
+  show($("h2Err"), true);
+}
+function hideH2Error(){ show($("h2Err"), false); }
+
+function openCamera(){
+  show($("h1Err"), false);
+  $("photoInput").click();
+}
+
+$("photoInput").addEventListener("change", ev => {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";              // so the same photo can be picked twice
+  if(file) startPhotoFlow(file);
+});
+
+function clearPhotoState(){
+  if(h2ObjUrl){ URL.revokeObjectURL(h2ObjUrl); h2ObjUrl = null; }
+  h2File = null;
+  h2B64 = null;
+  h2Ocr = null;
+  h2Ref = null;
+  $("h2Img").removeAttribute("src");
+}
+
+function cancelPhoto(){
+  clearPhotoState();
+  go("H1");
+}
+
+async function startPhotoFlow(file){
+  clearPhotoState();
+  h2File = file;
+
+  // Blank the form and show the spinner before any work starts.
+  resetH2Fields();
+  show($("h2Form"), false);
+  show($("h2Reading"), true);
+  $("h2Reading").innerHTML = '<span class="spin"></span>Reading receipt…';
+  go("H2");
+
+  // Preview straight from the local file — never wait on the Drive upload.
+  h2ObjUrl = URL.createObjectURL(file);
+  const imgEl = $("h2Img");
+  imgEl.onerror = () => {                      // iOS reclaimed it; fall back
+    if(h2B64) imgEl.src = "data:image/jpeg;base64," + h2B64;
+  };
+  imgEl.src = h2ObjUrl;
+
+  let b64 = null;
+  try{
+    b64 = await compressPhoto(file);
+  }catch(e){
+    b64 = null;
+  }
+
+  if(!b64){
+    clearPhotoState();
+    go("H1");
+    $("h1Err").textContent = "Photo too big. Please use NO RECEIPT.";
+    show($("h1Err"), true);
+    return;
+  }
+  h2B64 = b64;
+
+  const ocr = await callOcr(b64);
+  if(ocr === null) return;                     // session died; already on P0
+
+  h2Ocr = ocr;
+  fillH2(ocr);
+  show($("h2Reading"), false);
+  show($("h2Form"), true);
+  validateH2();
+}
+
+/**
+ * Always resolves to a usable result. A 25-second wall matches what the helper
+ * will actually tolerate — Apps Script would otherwise keep going for minutes.
+ * Returns null only when the session is gone (the caller has been sent to P0).
+ */
+async function callOcr(b64){
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), OCR_TIMEOUT_MS);
+  try{
+    return await api("ocrReceipt",
+      { imageB64: b64, mimeType: "image/jpeg" },
+      { signal: ctl.signal });
+  }catch(e){
+    if(e.code === "UNAUTHORIZED" || e.code === "FORBIDDEN"){
+      clearPhotoState();
+      handleAuthFailure();
+      return null;
+    }
+    return { store: null, date: null, amount: null, category: null, ocrFailed: true };
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+function resetH2Fields(){
+  $("h2Store").value = "";
+  $("h2Date").value = "";
+  $("h2Amt").value = "";
+  $("h2Cat").value = "";
+  $("h2Note").value = "";
+  ["h2StoreAi", "h2DateAi", "h2AmtAi", "h2CatAi"].forEach(id => show($(id), false));
+
+  const splits = document.querySelectorAll("#h2Split button");
+  splits.forEach(b => b.classList.remove("on"));
+  splits[0].classList.add("on");               // Home food
+
+  $("h2Check").textContent = "✓ Please check. Fix if wrong.";
+  hideH2Error();
+}
+
+/** Null means EMPTY. Never a zero, never a guess. */
+function fillH2(ocr){
+  if(ocr.ocrFailed){
+    $("h2Check").textContent = "Could not read it. Please type.";
+    return;
+  }
+
+  if(ocr.store != null){ $("h2Store").value = ocr.store; show($("h2StoreAi"), true); }
+  if(ocr.date  != null){ $("h2Date").value  = ocr.date;  show($("h2DateAi"),  true); }
+  if(ocr.amount != null){ $("h2Amt").value  = String(ocr.amount); show($("h2AmtAi"), true); }
+  if(ocr.category != null){ $("h2Cat").value = ocr.category; show($("h2CatAi"), true); }
+
+  // Read nothing useful? Same screen, same blank fields, different sentence.
+  if(ocr.store == null && ocr.date == null && ocr.amount == null && ocr.category == null){
+    $("h2Check").textContent = "Could not read it. Please type.";
+  }
+}
+
+function validateH2(){
+  const value = Number($("h2Amt").value);
+  const ok = $("h2Amt").value.trim() !== "" && isFinite(value) && value > 0 && $("h2Cat").value !== "";
+  $("h2Submit").disabled = !ok;
+  return ok;
+}
+
+["h2Store", "h2Date", "h2Amt", "h2Cat", "h2Note"].forEach(id => {
+  $(id).addEventListener("input", () => { hideH2Error(); validateH2(); });
+  $(id).addEventListener("change", () => { hideH2Error(); validateH2(); });
+});
+
+/**
+ * "ai" only if OCR gave us something AND the helper kept at least one of those
+ * values. If she retyped everything, she entered it — that is "manual".
+ */
+function h2InputMethod(){
+  if(!h2Ocr || h2Ocr.ocrFailed) return "manual";
+
+  const kept = [
+    [h2Ocr.store,    $("h2Store").value.trim()],
+    [h2Ocr.date,     $("h2Date").value.trim()],
+    [h2Ocr.amount,   $("h2Amt").value.trim()],
+    [h2Ocr.category, $("h2Cat").value.trim()]
+  ].some(([given, now]) => given != null && now !== "" && now === String(given));
+
+  return kept ? "ai" : "manual";
+}
+
+async function submitPhoto(){
+  if(h2Submitting) return;
+  if(!validateH2()){ h2Error("Type the money and choose what it is."); return; }
+
+  // Same ref across retries: a resend after a dropped reply cannot double-charge.
+  if(!h2Ref) h2Ref = newRef();
+
+  h2Submitting = true;
+  const btn = $("h2Submit");
+  btn.disabled = true;
+  btn.textContent = "SAVING…";
+  hideH2Error();
+
+  try{
+    const data = await api("createTransaction", {
+      date: $("h2Date").value.trim() || todayHK(),
+      amount: Number($("h2Amt").value),
+      category: $("h2Cat").value,
+      wallet_split: document.querySelector("#h2Split button.on").dataset.split,
+      store: $("h2Store").value.trim(),
+      note: $("h2Note").value.trim(),
+      input_method: h2InputMethod(),
+      clientRef: h2Ref,
+      imageB64: h2B64 || "",        // sent even when OCR failed — keep the photo
+      mimeType: "image/jpeg"
+    });
+
+    $("h4Balance").textContent = money(data.balance);
+    $("h4Photo").textContent = data.photoFailed ? "Saved, but the photo did not upload." : "";
+    show($("h4Photo"), !!data.photoFailed);
+
+    clearPhotoState();
+    go("H4");
+    startH4Timer();
+
+  }catch(e){
+    if(e.code === "UNAUTHORIZED" || e.code === "FORBIDDEN"){ handleAuthFailure(); return; }
+    // Everything stays: fields, photo, clientRef. Pressing SUBMIT again is safe.
+    if(e.code === "VALIDATION") h2Error(e.message);
+    else h2Error("Not saved. Check signal and press SUBMIT again.");
+  }finally{
+    h2Submitting = false;
+    btn.disabled = false;
+    btn.textContent = "SUBMIT";
+    validateH2();
+  }
+}
+
+/* ===========================================================================
  * H3 · MANUAL ENTRY
  * =========================================================================*/
 let amt = "";
@@ -739,6 +1173,7 @@ async function submitManual(){
 
     // Always the balance the SERVER returned, never a locally computed guess.
     $("h4Balance").textContent = money(data.balance);
+    show($("h4Photo"), false);          // no photo on this path
     resetManual();
     go("H4");
     startH4Timer();
