@@ -310,6 +310,22 @@ input.note-inp::placeholder{color:#a9b3c1}
   animation:hw-spin .8s linear infinite;
 }
 @keyframes hw-spin{to{transform:rotate(360deg)}}
+
+/* ---------- phase-3: reconcile + admin ---------- */
+.appbar .back.nav{
+  border:1px solid rgba(255,255,255,.35); border-radius:8px; width:30px; height:30px;
+  display:inline-flex; align-items:center; justify-content:center; font-size:16px; flex:none;
+}
+#h1Recon{cursor:pointer}
+#a2Rows tr{cursor:pointer}
+#a2Rows tr:hover{background:#f7f9fc}
+#a2Rows tr.sel{background:#eaf2fb}
+input[type=checkbox]:disabled{cursor:not-allowed; opacity:.4}
+a.thumb{text-decoration:none}
+.hist .m .short{color:var(--red); font-weight:700}
+.admin-tabs{margin-bottom:16px}
+.alert .act{margin-left:auto; flex:none}
+.muted-row{color:var(--muted); font-size:13px; padding:14px 4px}
 </style>
 </head>
 <body>
@@ -358,7 +374,7 @@ input.note-inp::placeholder{color:#a9b3c1}
       <div class="note" id="h1BalanceNote"></div>
     </div>
 
-    <div class="check-note hidden" id="h1Recon">🗓️ Sunday check — count your wallet</div>
+    <div class="check-note hidden" id="h1Recon" onclick="go('H5')">🗓️ Sunday check — count your wallet</div>
     <div class="check-note hidden" id="h1Err">Cannot reach the server. Pull down to try again.</div>
 
     <button class="big-btn btn-snap" id="btnSnap" onclick="openCamera()"><span class="ico">📷</span> SNAP RECEIPT</button>
@@ -477,6 +493,181 @@ input.note-inp::placeholder{color:#a9b3c1}
     <div class="check-note hidden" id="h4Photo" style="margin:18px 0 0"></div>
     <div class="hint">Going back to home in 3 seconds…</div>
     <button class="again" onclick="go('H1')">Back now</button>
+  </div>
+</div>
+
+<!-- ================= H5 · SUNDAY CHECK ================= -->
+<div class="phone helper scr hidden" id="H5">
+  <div class="appbar"><span class="back" onclick="go('H1')">←</span><div><h1>Sunday check 🗓️</h1><div class="sub">Count your wallet</div></div></div>
+  <div class="body">
+
+    <div id="h5Entry">
+      <div class="check-note" style="background:#eaf2fb;border-color:#c5daf2;color:var(--navy)">How much cash in the wallet now?</div>
+      <div class="amt-display"><div class="val" id="h5Val">HK$ 0</div></div>
+      <div class="pad" id="h5Pad">
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button class="grey" data-k=".">.</button><button data-k="0">0</button><button class="grey" data-k="back">⌫</button>
+      </div>
+      <div class="check-note hidden" id="h5Err"></div>
+      <button class="submit" id="h5Submit" onclick="submitReconcile()">SUBMIT</button>
+    </div>
+
+    <div id="h5Result" class="hidden">
+      <div class="result ok hidden" id="recOk">
+        <div class="ico">✅</div>
+        <h3>All good!</h3>
+        <p id="recOkText"></p>
+      </div>
+      <div class="result warn hidden" id="recWarn">
+        <div class="ico">⚠️</div>
+        <h3>Not the same</h3>
+        <p id="recWarnText"></p>
+      </div>
+      <div class="success" style="padding:0;background:transparent">
+        <div class="hint" style="margin:0 0 18px">Going back to home in 4 seconds…</div>
+      </div>
+      <button class="submit" onclick="go('H1')">OK</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= A1 · DASHBOARD ================= -->
+<div class="phone wide admin scr hidden" id="A1">
+  <div class="appbar">
+    <div><h1>Dashboard</h1><div class="sub" id="a1Week">…</div></div>
+    <span class="back nav ml-auto" onclick="adminWeek(-1)" title="Previous week">‹</span>
+    <span class="back nav" onclick="adminWeek(1)" title="Next week">›</span>
+  </div>
+  <div class="body">
+    <div class="state-tabs admin-tabs"></div>
+    <div class="alert r hidden" id="a1Err"></div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">This week total</div><div class="val" id="a1Total">—</div><div class="delta" id="a1Avg"></div></div>
+      <div class="kpi"><div class="lbl">Cash on hand</div><div class="val" id="a1Balance">—</div><div class="delta" id="a1LastTopup"></div></div>
+      <div class="kpi accent"><div class="lbl">Suggested top-up</div><div class="val" id="a1Suggest">—</div><div class="delta" id="a1Rule"></div></div>
+    </div>
+
+    <div class="card">
+      <h3>Where the money went <span id="a1BarsWhen">this week</span></h3>
+      <div id="a1Bars"></div>
+    </div>
+
+    <div class="card">
+      <h3>Needs your attention</h3>
+      <div id="a1Alerts"></div>
+    </div>
+
+    <div class="topup-cta">
+      <div>
+        <div class="big" id="a1CtaBig">Top up —</div>
+        <div class="rule" id="a1CtaRule"></div>
+      </div>
+      <button class="btn btn-primary ml-auto" onclick="go('A3')">Go to top-up →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= A2 · TRANSACTIONS ================= -->
+<div class="phone wide admin scr hidden" id="A2">
+  <div class="appbar"><div><h1>Transactions</h1><div class="sub" id="a2Sub">All entries · newest first</div></div></div>
+  <div class="body">
+    <div class="state-tabs admin-tabs"></div>
+    <div class="alert r hidden" id="a2Err"></div>
+
+    <div class="filters" id="a2Filters">
+      <span class="f on" data-g="period" data-v="week">This week</span>
+      <span class="f" data-g="period" data-v="all">All</span>
+      <span class="f" data-g="toggle" data-v="pending">Pending only</span>
+      <span class="f" data-g="split" data-v="home">🏠 Home food</span>
+      <span class="f" data-g="split" data-v="helper_own">👩 Helper food</span>
+      <span class="f" data-g="toggle" data-v="nophoto">No photo</span>
+    </div>
+
+    <div class="card hidden" id="a2Edit">
+      <h3>Edit entry <span id="a2EditWhen"></span></h3>
+      <div class="row2">
+        <div class="field"><label>Date</label><div class="inp"><input class="bare" type="date" id="e_date"></div></div>
+        <div class="field"><label>Amount</label><div class="inp"><input class="bare" id="e_amount" inputmode="decimal"></div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Category</label><div class="inp"><select class="bare" id="e_category">
+          <option value="Food">Food</option><option value="Market">Market</option>
+          <option value="Household">Household</option><option value="Pets">Pets</option>
+          <option value="Transport">Transport</option><option value="Other">Other</option>
+        </select></div></div>
+        <div class="field"><label>For</label><div class="inp"><select class="bare" id="e_split">
+          <option value="home">🏠 Home</option><option value="helper_own">👩 Helper own</option>
+        </select></div></div>
+      </div>
+      <div class="field"><label>Store</label><div class="inp"><input class="bare" id="e_store" maxlength="60"></div></div>
+      <div class="field"><label>Note</label><div class="inp"><input class="bare" id="e_note" maxlength="120"></div></div>
+      <div class="alert y hidden" id="a2EditErr"></div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <button class="btn btn-green" id="a2Save" onclick="saveEdit()">Save changes</button>
+        <button class="btn btn-ghost" onclick="closeEdit()">Cancel</button>
+        <button class="btn ml-auto" style="background:var(--red);color:#fff" onclick="deleteEdit()">Delete entry</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:8px 12px">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Store</th><th class="num">Amount</th><th>Category</th>
+            <th>For</th><th>Photo</th><th style="text-align:center">Claim</th><th>Status</th>
+          </tr></thead>
+          <tbody id="a2Rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note-box"><b>Claim column</b> = company_claim. Ticked by default on every transaction — untick the exceptions. Exported rows are locked.</div>
+  </div>
+</div>
+
+<!-- ================= A3 · TOP-UPS ================= -->
+<div class="phone wide admin scr hidden" id="A3">
+  <div class="appbar"><div><h1>Cash top-ups</h1><div class="sub">Weekly cash given to Marites</div></div></div>
+  <div class="body">
+    <div class="state-tabs admin-tabs"></div>
+    <div class="alert r hidden" id="a3Err"></div>
+
+    <div class="topup-cta" style="margin-bottom:16px">
+      <div>
+        <div class="rule" id="a3When">Suggested for next Monday</div>
+        <div class="big" id="a3Suggest">HK$ —</div>
+        <div class="rule" id="a3Rule"></div>
+      </div>
+      <button class="btn btn-primary ml-auto" id="a3AddBtn" onclick="openTopupForm()">+ Top up</button>
+    </div>
+
+    <div class="card hidden" id="a3Form">
+      <h3>New top-up</h3>
+      <div class="row2">
+        <div class="field"><label>Date</label><div class="inp"><input class="bare" type="date" id="t_date"></div></div>
+        <div class="field"><label>Amount</label><div class="inp"><input class="bare" id="t_amount" inputmode="decimal"></div></div>
+      </div>
+      <div class="field"><label>Note</label><div class="inp"><input class="bare" id="t_note" maxlength="120" placeholder="optional"></div></div>
+      <div class="alert y hidden" id="a3FormErr"></div>
+      <div style="display:flex; gap:10px">
+        <button class="btn btn-green" id="a3Save" onclick="saveTopup()">Save top-up</button>
+        <button class="btn btn-ghost" onclick="closeTopupForm()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Cash on hand now</div><div class="val" id="a3Balance">—</div><div class="delta" id="a3AsOf"></div></div>
+      <div class="kpi"><div class="lbl">Given last 4 weeks</div><div class="val" id="a3Given">—</div><div class="delta" id="a3Spent"></div></div>
+    </div>
+
+    <div class="card">
+      <h3>Top-up history</h3>
+      <div id="a3Hist"></div>
+    </div>
   </div>
 </div>
 
@@ -599,11 +790,29 @@ function pick(btn){
 let cur = "P0";
 function go(id){
   if(id !== "H4" && h4Timer){ clearTimeout(h4Timer); h4Timer = null; }
+  if(id !== "H5" && h5Timer){ clearTimeout(h5Timer); h5Timer = null; }
+
+  // A helper session must NEVER render an admin screen, whatever the URL or a
+  // stale click says. The server would refuse anyway; this stops the attempt.
+  if(id.charAt(0) === "A" && !(session && session.role === "admin")) id = "H1";
+
   cur = id;
   document.querySelectorAll(".scr").forEach(el => el.classList.add("hidden"));
   $(id).classList.remove("hidden");
   window.scrollTo(0, 0);
+
   if(id === "H1") loadHome();
+  if(id === "H5") resetH5();
+  if(id === "A1") loadDashboard();
+  if(id === "A2") loadTransactions();
+  if(id === "A3") loadTopups();
+  if(id.charAt(0) === "A") markAdminTab(id);
+}
+
+/** Admin lands on the dashboard, helper on home. Role decides, not the URL. */
+function routeByRole(){
+  if(session && session.role === "admin") go("A1");
+  else go("H1");
 }
 
 /** One place to react to an expired or revoked token. */
@@ -645,7 +854,7 @@ async function doLogin(role, secret){
     const data = await api("login", { role: role, secret: secret });
     saveSession({ token: data.token, role: data.role, expiresAt: data.expiresAt });
     resetPin();
-    go("H1");
+    routeByRole();
   }catch(e){
     if(e.code === "BAD_CREDENTIALS"){
       loginError(role === "admin" ? "Wrong password. Try again." : "Wrong PIN. Try again.");
@@ -697,7 +906,7 @@ async function loadHome(){
     const data = await api("getHelperHome", {});
 
     $("h1Balance").textContent = money(data.balance);
-    show($("h1Recon"), !!data.reconcileDue);
+    show($("h1Recon"), !!data.reconcileDue);   // now opens H5 — see the onclick
 
     const list = $("h1List");
     if(!data.today || !data.today.length){
@@ -1202,6 +1411,553 @@ function startH4Timer(){
 }
 
 /* ===========================================================================
+ * H5 · SUNDAY CHECK
+ * =========================================================================*/
+let h5Amt = "";
+let h5Submitting = false;
+let h5Timer = null;
+
+function renderH5(){ $("h5Val").textContent = "HK$ " + (h5Amt === "" ? "0" : h5Amt); }
+function h5Error(msg){ $("h5Err").textContent = msg; show($("h5Err"), true); }
+
+function resetH5(){
+  h5Amt = "";
+  renderH5();
+  show($("h5Entry"), true);
+  show($("h5Result"), false);
+  show($("recOk"), false);
+  show($("recWarn"), false);
+  show($("h5Err"), false);
+}
+
+$("h5Pad").addEventListener("click", ev => {
+  const btn = ev.target.closest("button");
+  if(!btn) return;
+  const k = btn.dataset.k;
+  show($("h5Err"), false);
+
+  if(k === "back"){
+    h5Amt = h5Amt.slice(0, -1);
+  }else if(k === "."){
+    if(h5Amt === "") h5Amt = "0.";
+    else if(h5Amt.indexOf(".") === -1) h5Amt += ".";
+  }else{
+    if(h5Amt === "0") h5Amt = "";
+    const dot = h5Amt.indexOf(".");
+    if(dot !== -1 && h5Amt.length - dot > 2) return;
+    if(h5Amt.replace(".", "").length >= 7) return;
+    h5Amt += k;
+  }
+  renderH5();
+});
+
+async function submitReconcile(){
+  if(h5Submitting) return;
+
+  const value = Number(h5Amt);
+  if(h5Amt === "" || !isFinite(value) || value < 0){
+    h5Error("Type the money in your wallet.");
+    return;
+  }
+
+  h5Submitting = true;
+  const btn = $("h5Submit");
+  btn.disabled = true;
+  btn.textContent = "CHECKING…";
+
+  try{
+    const d = await api("createReconciliation", { date: todayHK(), counted: value });
+
+    show($("h5Entry"), false);
+    show($("h5Result"), true);
+
+    if(d.status === "ok"){
+      $("recOkText").innerHTML =
+        "App says " + money(d.expected) + ".<br>You have " + money(d.counted) + ".";
+      show($("recOk"), true);
+    }else{
+      $("recWarnText").innerHTML =
+        "App says " + money(d.expected) + ".<br>You have " + money(d.counted) + ".<br>" +
+        "<b>Difference: " + money(Math.abs(d.difference)) + "</b><br>" +
+        "Maybe one receipt is missing.<br>Amy will check with you.";
+      show($("recWarn"), true);
+    }
+
+    h5Timer = setTimeout(() => { h5Timer = null; go("H1"); }, 4000);
+
+  }catch(e){
+    if(e.code === "UNAUTHORIZED" || e.code === "FORBIDDEN"){ handleAuthFailure(); return; }
+    if(e.code === "VALIDATION") h5Error(e.message);
+    else h5Error("Not saved. Check signal and press SUBMIT again.");
+  }finally{
+    h5Submitting = false;
+    btn.disabled = false;
+    btn.textContent = "SUBMIT";
+  }
+}
+
+/* ===========================================================================
+ * ADMIN — shared
+ * =========================================================================*/
+const ADMIN_SCREENS = [["A1","Dashboard"], ["A2","Transactions"], ["A3","Top-ups"]];
+
+const CAT_CHIP = {
+  Food:"c-food", Market:"c-market", Household:"c-house",
+  Pets:"c-pets", Transport:"c-trans", Other:"c-other"
+};
+const BAR_COLOR = {
+  Food:"#2E75B6", Market:"#2E7D32", Household:"#F9A825",
+  Pets:"#6b3fa0", Transport:"#1c6b7a", Other:"#6b7280"
+};
+
+document.querySelectorAll(".admin-tabs").forEach(bar => {
+  bar.innerHTML = ADMIN_SCREENS
+    .map(([id, label]) => '<button data-scr="' + id + '" onclick="go(\'' + id + '\')">' + label + '</button>')
+    .join("");
+});
+
+function markAdminTab(id){
+  document.querySelectorAll(".admin-tabs button").forEach(b => {
+    b.classList.toggle("on", b.dataset.scr === id);
+  });
+}
+
+function screenError(id, msg){
+  const el = $(id);
+  el.textContent = msg;
+  show(el, !!msg);
+}
+
+/** Calendar shift on a YYYY-MM-DD string, timezone-proof. */
+function shiftDays(dateStr, n){
+  const p = dateStr.split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "11 Aug" */
+function fmtDay(dateStr){
+  if(!dateStr) return "";
+  const p = dateStr.split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  return new Intl.DateTimeFormat("en-GB", { timeZone:"UTC", day:"numeric", month:"short" }).format(d);
+}
+
+/** "Mon 10 Aug" */
+function fmtDayWk(dateStr){
+  if(!dateStr) return "";
+  const p = dateStr.split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone:"UTC", weekday:"short", day:"numeric", month:"short"
+  }).format(d).replace(",", "");
+}
+
+/** Sends an admin call, routing auth problems back to the login screen. */
+async function adminApi(action, payload, errId){
+  try{
+    const data = await api(action, payload);
+    if(errId) screenError(errId, "");
+    return data;
+  }catch(e){
+    if(e.code === "UNAUTHORIZED" || e.code === "FORBIDDEN"){ handleAuthFailure(); return null; }
+    throw e;
+  }
+}
+
+/* ===========================================================================
+ * A1 · DASHBOARD
+ * =========================================================================*/
+let adminWeekStart = null;
+
+function adminWeek(delta){
+  if(!adminWeekStart) return;
+  adminWeekStart = shiftDays(adminWeekStart, delta * 7);
+  loadDashboard();
+}
+
+async function loadDashboard(){
+  try{
+    const d = await adminApi("getDashboard",
+      adminWeekStart ? { weekStart: adminWeekStart } : {}, "a1Err");
+    if(!d) return;
+
+    adminWeekStart = d.weekStart;
+
+    $("a1Week").textContent = "Week of " + fmtDay(d.weekStart) + " – " + fmtDay(d.weekEnd) +
+                              " " + d.weekEnd.slice(0, 4);
+    $("a1Total").textContent = money(d.weekTotal);
+    $("a1Avg").textContent = d.topup.weeksUsed
+      ? (d.topup.weeksUsed + "-wk avg " + money(d.topup.avg))
+      : "no completed weeks yet";
+
+    $("a1Balance").textContent = money(d.balance);
+    $("a1LastTopup").textContent = d.lastTopup
+      ? ("Last top-up " + fmtDayWk(d.lastTopup.date) + " · " + money(d.lastTopup.amount))
+      : "No top-up recorded yet";
+
+    $("a1Suggest").textContent = money(d.topup.suggestion);
+    const rule = d.topup.weeksUsed + "-week average +10%, rounded up to $50";
+    $("a1Rule").textContent = rule;
+    $("a1CtaBig").textContent = "Top up " + money(d.topup.suggestion);
+    $("a1CtaRule").textContent = "Rule: " + d.topup.weeksUsed + "-week average (" +
+                                 money(d.topup.avg) + ") + 10% → rounded up to nearest $50";
+
+    // --- category bars, as a share of the week ---
+    const total = Number(d.weekTotal) || 0;
+    const cats = Object.keys(d.byCategory)
+      .map(k => [k, Number(d.byCategory[k]) || 0])
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    $("a1BarsWhen").textContent = fmtDay(d.weekStart) + " – " + fmtDay(d.weekEnd);
+    $("a1Bars").innerHTML = cats.length
+      ? cats.map(([k, v]) => {
+          const pct = total > 0 ? Math.round(v / total * 100) : 0;
+          return '<div class="bar-row">' +
+                   '<div class="name">' + (CAT_ICON[k] || "") + " " + esc(k) + '</div>' +
+                   '<div class="track"><div class="fill" style="width:' + pct + '%;background:' +
+                     BAR_COLOR[k] + '"></div></div>' +
+                   '<div class="val">' + money(v) + '</div>' +
+                 '</div>';
+        }).join("")
+      : '<div class="muted-row">Nothing spent this week.</div>';
+
+    // --- alerts ---
+    $("a1Alerts").innerHTML = d.alerts.length
+      ? d.alerts.map(a => {
+          const cls = a.severity === "red" ? "r" : "y";
+          const ico = a.severity === "red" ? "🚩" : "⚠️";
+          const action = a.type === "reconcile_diff"
+            ? '<button class="btn btn-ghost act" onclick="markResolved(\'' + esc(a.ref) + '\')">Mark resolved</button>'
+            : "";
+          return '<div class="alert ' + cls + '">' + ico +
+                   '<div><b>' + esc(a.title) + '</b>' + esc(a.detail) + '</div>' +
+                   action +
+                 '</div>';
+        }).join("")
+      : '<div class="muted-row">Nothing needs attention.</div>';
+
+  }catch(e){
+    screenError("a1Err", "Could not load the dashboard. " + (e.message || ""));
+  }
+}
+
+async function markResolved(reconId){
+  try{
+    const d = await adminApi("resolveReconcile", { recon_id: reconId, note: "Resolved by Amy" }, "a1Err");
+    if(!d) return;
+    loadDashboard();
+  }catch(e){
+    screenError("a1Err", "Could not mark it resolved. " + (e.message || ""));
+  }
+}
+
+/* ===========================================================================
+ * A2 · TRANSACTIONS
+ * =========================================================================*/
+let a2All = [];
+let a2Filter = { period:"week", pending:false, split:null, nophoto:false };
+let a2EditId = null;
+
+$("a2Filters").addEventListener("click", ev => {
+  const chip = ev.target.closest(".f");
+  if(!chip) return;
+  const g = chip.dataset.g, v = chip.dataset.v;
+
+  if(g === "period"){
+    a2Filter.period = v;
+  }else if(g === "split"){
+    a2Filter.split = (a2Filter.split === v) ? null : v;
+  }else{
+    a2Filter[v] = !a2Filter[v];
+  }
+
+  document.querySelectorAll("#a2Filters .f").forEach(c => {
+    const cg = c.dataset.g, cv = c.dataset.v;
+    let on = false;
+    if(cg === "period") on = a2Filter.period === cv;
+    else if(cg === "split") on = a2Filter.split === cv;
+    else on = !!a2Filter[cv];
+    c.classList.toggle("on", on);
+  });
+
+  renderA2();
+});
+
+async function loadTransactions(){
+  try{
+    closeEdit();
+    $("a2Rows").innerHTML = '<tr><td colspan="8" class="muted-row">Loading…</td></tr>';
+    const d = await adminApi("listTransactions", {}, "a2Err");
+    if(!d) return;
+    a2All = d.transactions;
+    renderA2();
+  }catch(e){
+    $("a2Rows").innerHTML = "";
+    screenError("a2Err", "Could not load transactions. " + (e.message || ""));
+  }
+}
+
+/** One fetch, then every chip filters in the browser. */
+function visibleTxns(){
+  const weekStart = mondayOf(todayHK());
+  return a2All.filter(t => {
+    if(a2Filter.period === "week" && t.date < weekStart) return false;
+    if(a2Filter.pending && t.claim_status !== "pending") return false;
+    if(a2Filter.split && t.wallet_split !== a2Filter.split) return false;
+    if(a2Filter.nophoto && t.photo_id !== "") return false;
+    return true;
+  });
+}
+
+function mondayOf(dateStr){
+  const p = dateStr.split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  const dow = d.getUTCDay();                 // 0 = Sunday
+  return shiftDays(dateStr, -(dow === 0 ? 6 : dow - 1));
+}
+
+function renderA2(){
+  const rows = visibleTxns();
+  $("a2Sub").textContent = rows.length + " of " + a2All.length + " entries · newest first";
+
+  if(!rows.length){
+    $("a2Rows").innerHTML = '<tr><td colspan="8" class="muted-row">Nothing matches these filters.</td></tr>';
+    return;
+  }
+
+  $("a2Rows").innerHTML = rows.map(t => {
+    const exported = t.exported_at !== "";
+    const tagCls = t.wallet_split === "helper_own" ? "tag-my" : "tag-home";
+    const tagTxt = t.wallet_split === "helper_own" ? "My food" : "Home";
+
+    const thumb = t.photo_url
+      ? '<a class="thumb" href="' + esc(t.photo_url) + '" target="_blank" rel="noopener" ' +
+        'onclick="event.stopPropagation()" title="Open receipt">🧾</a>'
+      : '<div class="thumb" style="background:#fdf6e3;color:#8a6100">—</div>';
+
+    return '<tr data-id="' + esc(t.txn_id) + '" onclick="openEdit(\'' + esc(t.txn_id) + '\')">' +
+      '<td>' + fmtDay(t.date) + '</td>' +
+      '<td>' + (esc(t.store) || '<span style="color:var(--muted)">—</span>') + '</td>' +
+      '<td class="num">' + Number(t.amount).toFixed(2) + '</td>' +
+      '<td><span class="chip ' + (CAT_CHIP[t.category] || "c-other") + '">' + esc(t.category) + '</span></td>' +
+      '<td><span class="tag ' + tagCls + '">' + tagTxt + '</span></td>' +
+      '<td>' + thumb + '</td>' +
+      '<td style="text-align:center"><input type="checkbox" ' +
+        (t.company_claim ? "checked " : "") +
+        (exported ? 'disabled title="Already exported — cannot change." ' : "") +
+        'data-id="' + esc(t.txn_id) + '" onclick="event.stopPropagation()" ' +
+        'onchange="onClaimToggle(this)"></td>' +
+      '<td><span class="chip ' + (exported ? "c-exported" : "c-pending") + '">' +
+        (exported ? "exported" : esc(t.claim_status)) + '</span></td>' +
+    '</tr>';
+  }).join("");
+}
+
+/**
+ * Optimistic: the tick flips at once, and is put back if the server says no.
+ * Anything else feels broken on a slow connection.
+ */
+async function onClaimToggle(box){
+  const id = box.dataset.id;
+  const want = box.checked;
+  box.disabled = true;
+
+  try{
+    const d = await adminApi("setClaimFlag", { txn_id: id, company_claim: want }, "a2Err");
+    if(!d){ return; }
+    const row = a2All.find(t => t.txn_id === id);
+    if(row) row.company_claim = d.company_claim;
+    box.disabled = false;
+  }catch(e){
+    box.checked = !want;                       // revert
+    box.disabled = false;
+    screenError("a2Err", e.code === "ALREADY_EXPORTED"
+      ? "Already exported — cannot change."
+      : ("Could not save that tick. " + (e.message || "")));
+  }
+}
+
+function openEdit(txnId){
+  const t = a2All.find(x => x.txn_id === txnId);
+  if(!t) return;
+
+  if(t.exported_at !== ""){
+    screenError("a2Err", "Already exported — cannot change.");
+    return;
+  }
+
+  a2EditId = txnId;
+  $("a2EditWhen").textContent = fmtDayWk(t.date) + " · " + (t.store || "no shop");
+  $("e_date").value = t.date;
+  $("e_amount").value = String(t.amount);
+  $("e_category").value = t.category;
+  $("e_split").value = t.wallet_split;
+  $("e_store").value = t.store;
+  $("e_note").value = t.note;
+  show($("a2EditErr"), false);
+  show($("a2Edit"), true);
+
+  document.querySelectorAll("#a2Rows tr").forEach(tr => {
+    tr.classList.toggle("sel", tr.dataset.id === txnId);
+  });
+  $("a2Edit").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+
+function closeEdit(){
+  a2EditId = null;
+  show($("a2Edit"), false);
+  document.querySelectorAll("#a2Rows tr.sel").forEach(tr => tr.classList.remove("sel"));
+}
+
+async function saveEdit(){
+  if(!a2EditId) return;
+  const btn = $("a2Save");
+  btn.disabled = true;
+
+  try{
+    const d = await adminApi("updateTransaction", {
+      txn_id: a2EditId,
+      fields: {
+        date: $("e_date").value,
+        amount: Number($("e_amount").value),
+        category: $("e_category").value,
+        wallet_split: $("e_split").value,
+        store: $("e_store").value.trim(),
+        note: $("e_note").value.trim()
+      }
+    }, "a2Err");
+    if(!d) return;
+
+    const i = a2All.findIndex(x => x.txn_id === a2EditId);
+    if(i !== -1) a2All[i] = d.transaction;
+    closeEdit();
+    renderA2();
+  }catch(e){
+    $("a2EditErr").textContent = e.code === "ALREADY_EXPORTED"
+      ? "Already exported — cannot change."
+      : (e.message || "Could not save.");
+    show($("a2EditErr"), true);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function deleteEdit(){
+  if(!a2EditId) return;
+  const t = a2All.find(x => x.txn_id === a2EditId);
+  const label = t ? (money(t.amount) + " on " + fmtDayWk(t.date)) : "this entry";
+  if(!confirm("Delete " + label + "? This cannot be undone.")) return;
+
+  try{
+    const d = await adminApi("deleteTransaction", { txn_id: a2EditId }, "a2Err");
+    if(!d) return;
+    a2All = a2All.filter(x => x.txn_id !== a2EditId);
+    closeEdit();
+    renderA2();
+  }catch(e){
+    $("a2EditErr").textContent = e.code === "ALREADY_EXPORTED"
+      ? "Already exported — cannot delete."
+      : (e.message || "Could not delete.");
+    show($("a2EditErr"), true);
+  }
+}
+
+/* ===========================================================================
+ * A3 · TOP-UPS
+ * =========================================================================*/
+let a3Suggestion = 0;
+
+async function loadTopups(){
+  try{
+    closeTopupForm();
+    $("a3Hist").innerHTML = '<div class="muted-row">Loading…</div>';
+    const d = await adminApi("listTopups", { limit: 40 }, "a3Err");
+    if(!d) return;
+
+    a3Suggestion = Number(d.suggestion) || 0;
+
+    const nextMonday = shiftDays(mondayOf(todayHK()), 7);
+    $("a3When").textContent = "Suggested for Monday " + fmtDay(nextMonday);
+    $("a3Suggest").textContent = money(d.suggestion);
+    $("a3Rule").textContent = d.weeksUsed + "-week average " + money(d.avg) +
+                              " + 10% → rounded up to nearest $50";
+    $("a3AddBtn").textContent = "+ Top up " + money(d.suggestion);
+
+    $("a3Balance").textContent = money(d.balance);
+    $("a3AsOf").textContent = "as of today " + fmtDay(todayHK());
+    $("a3Given").textContent = money(d.given4w);
+    $("a3Spent").textContent = "spent " + money(d.spent4w);
+
+    $("a3Hist").innerHTML = d.topups.length
+      ? d.topups.map(t => {
+          let meta;
+          if(t.isCurrent){
+            meta = "Spent so far: " + money(t.spent) + " · left " + money(t.leftOver);
+          }else if(t.leftOver >= 0){
+            meta = "Spent: " + money(t.spent) + " · rolled over " + money(t.leftOver);
+          }else{
+            meta = "Spent: " + money(t.spent) +
+                   ' · <span class="short">short ' + money(Math.abs(t.leftOver)) + "</span>";
+          }
+          const note = t.note ? (" · " + esc(t.note)) : "";
+          return '<div class="hist">' +
+                   '<div class="d">' + fmtDayWk(t.date) + '</div>' +
+                   '<div><div>Cash handed over' + note + '</div>' +
+                   '<div class="m">' + meta + '</div></div>' +
+                   '<div class="a">+ ' + money(t.amount) + '</div>' +
+                 '</div>';
+        }).join("")
+      : '<div class="muted-row">No top-ups recorded yet.</div>';
+
+  }catch(e){
+    $("a3Hist").innerHTML = "";
+    screenError("a3Err", "Could not load top-ups. " + (e.message || ""));
+  }
+}
+
+/** Pre-fills the suggestion but leaves every field editable. */
+function openTopupForm(){
+  $("t_date").value = todayHK();
+  $("t_amount").value = a3Suggestion ? String(a3Suggestion) : "";
+  $("t_note").value = "";
+  show($("a3FormErr"), false);
+  show($("a3Form"), true);
+  $("a3Form").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+
+function closeTopupForm(){ show($("a3Form"), false); }
+
+async function saveTopup(){
+  const amount = Number($("t_amount").value);
+  if(!$("t_amount").value.trim() || !isFinite(amount) || amount <= 0){
+    $("a3FormErr").textContent = "Amount must be more than 0.";
+    show($("a3FormErr"), true);
+    return;
+  }
+
+  const btn = $("a3Save");
+  btn.disabled = true;
+  try{
+    const d = await adminApi("createTopup", {
+      date: $("t_date").value,
+      amount: amount,
+      note: $("t_note").value.trim()
+    }, "a3Err");
+    if(!d) return;
+    closeTopupForm();
+    loadTopups();
+  }catch(e){
+    $("a3FormErr").textContent = e.message || "Could not save the top-up.";
+    show($("a3FormErr"), true);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+/* ===========================================================================
  * BOOT
  * =========================================================================*/
 (function boot(){
@@ -1217,7 +1973,7 @@ function startH4Timer(){
   }
 
   session = loadSession();
-  if(session) go("H1");
+  if(session) routeByRole();
   else go("P0");
 })();
 </script>
