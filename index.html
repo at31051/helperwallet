@@ -631,7 +631,7 @@ a.thumb{text-decoration:none}
 
 <!-- ================= A3 · TOP-UPS ================= -->
 <div class="phone wide admin scr hidden" id="A3">
-  <div class="appbar"><div><h1>Cash top-ups</h1><div class="sub">Weekly cash given to Marites</div></div></div>
+  <div class="appbar"><div><h1>Cash top-ups</h1><div class="sub">Weekly cash given to Herna</div></div></div>
   <div class="body">
     <div class="state-tabs admin-tabs"></div>
     <div class="alert r hidden" id="a3Err"></div>
@@ -679,7 +679,7 @@ a.thumb{text-decoration:none}
  * =========================================================================*/
 const API = "https://script.google.com/macros/s/AKfycbxYy-qDntOOZ4n04f-DlxoKp9aJQ8YRI55IiabzYODJSXsH5395yWR4l39Kl6-L42gN8w/exec";
 
-const HELPER_NAME = "Marites";
+const HELPER_NAME = "Herna";
 const TZ = "Asia/Hong_Kong";
 
 const CAT_ICON = {
@@ -1528,27 +1528,40 @@ function screenError(id, msg){
   show(el, !!msg);
 }
 
+/**
+ * "YYYY-MM-DD" -> Date at noon UTC, or null.
+ *
+ * Anything hand-typed into the sheet can reach here. Intl.DateTimeFormat throws
+ * "Invalid time value" on a bad Date, which would take out a whole screen for
+ * the sake of one row — so every formatter below goes through this and falls
+ * back to showing the raw text instead.
+ */
+function toUTCDate(dateStr){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ""))) return null;
+  const p = String(dateStr).split("-");
+  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  return isNaN(d.getTime()) ? null : d;
+}
+
 /** Calendar shift on a YYYY-MM-DD string, timezone-proof. */
 function shiftDays(dateStr, n){
-  const p = dateStr.split("-");
-  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  const d = toUTCDate(dateStr);
+  if(!d) return String(dateStr || "");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
 /** "11 Aug" */
 function fmtDay(dateStr){
-  if(!dateStr) return "";
-  const p = dateStr.split("-");
-  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  const d = toUTCDate(dateStr);
+  if(!d) return String(dateStr || "");
   return new Intl.DateTimeFormat("en-GB", { timeZone:"UTC", day:"numeric", month:"short" }).format(d);
 }
 
 /** "Mon 10 Aug" */
 function fmtDayWk(dateStr){
-  if(!dateStr) return "";
-  const p = dateStr.split("-");
-  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  const d = toUTCDate(dateStr);
+  if(!d) return String(dateStr || "");
   return new Intl.DateTimeFormat("en-GB", {
     timeZone:"UTC", weekday:"short", day:"numeric", month:"short"
   }).format(d).replace(",", "");
@@ -1713,8 +1726,8 @@ function visibleTxns(){
 }
 
 function mondayOf(dateStr){
-  const p = dateStr.split("-");
-  const d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+  const d = toUTCDate(dateStr);
+  if(!d) return String(dateStr || "");
   const dow = d.getUTCDay();                 // 0 = Sunday
   return shiftDays(dateStr, -(dow === 0 ? 6 : dow - 1));
 }
