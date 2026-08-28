@@ -326,6 +326,31 @@ a.thumb{text-decoration:none}
 .admin-tabs{margin-bottom:16px}
 .alert .act{margin-left:auto; flex:none}
 .muted-row{color:var(--muted); font-size:13px; padding:14px 4px}
+
+/* ---------- phase-3b: optional photo on the manual screen ---------- */
+.photo-add{
+  width:100%; border:2px dashed var(--line); background:#fff; border-radius:14px;
+  padding:14px; font-size:16px; font-weight:700; color:var(--muted); cursor:pointer;
+  margin-bottom:16px; display:flex; align-items:center; justify-content:center; gap:10px;
+  font-family:inherit; line-height:1.2;
+}
+.photo-add .ico{font-size:24px}
+.photo-add[disabled]{opacity:.6; cursor:default}
+.photo-chip{
+  display:flex; align-items:center; gap:12px; border:2px solid var(--line);
+  border-radius:14px; padding:10px 12px; margin-bottom:16px; background:#fff;
+}
+.photo-chip img{
+  width:52px; height:52px; object-fit:cover; border-radius:10px;
+  border:1px solid var(--line); flex:none; image-orientation:from-image;
+}
+.photo-chip .txt{font-size:15px; font-weight:700; color:var(--navy); line-height:1.3}
+.photo-chip .txt .sub{font-size:12px; font-weight:600; color:var(--muted); margin-top:2px}
+.photo-chip .rm{
+  margin-left:auto; flex:none; border:1px solid var(--line); background:#fff;
+  color:var(--muted); border-radius:10px; padding:8px 12px; font-size:13px;
+  font-weight:700; cursor:pointer; font-family:inherit;
+}
 </style>
 </head>
 <body>
@@ -475,6 +500,16 @@ a.thumb{text-decoration:none}
       <button class="on" data-split="home" onclick="pick(this)"><span class="ico">🏠</span>Home food</button>
       <button data-split="helper_own" onclick="pick(this)"><span class="ico">👩</span>My food</button>
     </div>
+
+    <button class="photo-add" id="h3PhotoBtn" onclick="pickManualPhoto()">
+      <span class="ico">📷</span> Add photo (not must)
+    </button>
+    <div class="photo-chip hidden" id="h3PhotoChip">
+      <img id="h3Thumb" alt="">
+      <div class="txt">Photo ready<div class="sub" id="h3PhotoSize"></div></div>
+      <button class="rm" onclick="clearManualPhoto()">Remove</button>
+    </div>
+    <input type="file" id="manualPhotoInput" accept="image/*" capture="environment" class="hidden">
 
     <input class="note-inp" id="h3Note" placeholder="Note (not must) — e.g. fish + choi sum" maxlength="120">
 
@@ -1290,6 +1325,11 @@ let amt = "";
 let clientRef = null;
 let submitting = false;
 
+// Optional photo on the manual screen. Stored, never sent to OCR — she picked
+// NO RECEIPT, so there is nothing to read; this is pure evidence keeping.
+let h3File = null;      // held for the iOS reason noted in the photo pipeline
+let h3B64 = null;
+
 function renderAmt(){
   $("h3Amt").textContent = "HK$ " + (amt === "" ? "0" : amt);
 }
@@ -1310,6 +1350,7 @@ function resetManual(){
   amt = "";
   clientRef = null;
   renderAmt();
+  clearManualPhoto();
   $("h3Note").value = "";
   document.querySelectorAll("#h3Cats button").forEach(b => b.classList.remove("on"));
   const splits = document.querySelectorAll("#h3Split button");
@@ -1340,6 +1381,55 @@ $("h3Pad").addEventListener("click", ev => {
 });
 
 $("h3Note").addEventListener("input", hideH3Error);
+
+/* ---- optional photo, storage only (no OCR call on this screen) ---------- */
+
+function pickManualPhoto(){
+  hideH3Error();
+  $("manualPhotoInput").click();
+}
+
+function clearManualPhoto(){
+  h3File = null;
+  h3B64 = null;
+  $("h3Thumb").removeAttribute("src");
+  $("h3PhotoSize").textContent = "";
+  show($("h3PhotoChip"), false);
+  show($("h3PhotoBtn"), true);
+}
+
+$("manualPhotoInput").addEventListener("change", async ev => {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";                       // so the same photo can be picked twice
+  if(!file) return;
+
+  const btn = $("h3PhotoBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Reading photo…';
+
+  try{
+    // Same EXIF-correcting compression as the receipt flow — a sideways photo
+    // is just as useless to look at later as it is to read.
+    const b64 = await compressPhoto(file);
+    if(!b64){
+      h3Error("Photo too big. Try again without it.");
+      return;
+    }
+
+    h3File = file;
+    h3B64 = b64;
+    $("h3Thumb").src = "data:image/jpeg;base64," + b64;
+    $("h3PhotoSize").textContent = Math.round(b64.length * 0.75 / 1024) + " KB";
+    show($("h3PhotoChip"), true);
+    show($("h3PhotoBtn"), false);
+
+  }catch(e){
+    h3Error("Could not read that photo. Try again without it.");
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '<span class="ico">📷</span> Add photo (not must)';
+  }
+});
 
 function newRef(){
   if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -1376,13 +1466,16 @@ async function submitManual(){
       wallet_split: splitBtn.dataset.split,
       store: "",
       note: $("h3Note").value.trim(),
-      input_method: "manual",
-      clientRef: clientRef
+      input_method: "manual",          // stays manual — nothing was AI-read here
+      clientRef: clientRef,
+      imageB64: h3B64 || "",           // optional; "" means no photo, as before
+      mimeType: "image/jpeg"
     });
 
     // Always the balance the SERVER returned, never a locally computed guess.
     $("h4Balance").textContent = money(data.balance);
-    show($("h4Photo"), false);          // no photo on this path
+    $("h4Photo").textContent = "Saved, but the photo did not upload.";
+    show($("h4Photo"), !!data.photoFailed);
     resetManual();
     go("H4");
     startH4Timer();
