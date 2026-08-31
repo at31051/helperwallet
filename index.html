@@ -351,6 +351,8 @@ a.thumb{text-decoration:none}
   color:var(--muted); border-radius:10px; padding:8px 12px; font-size:13px;
   font-weight:700; cursor:pointer; font-family:inherit;
 }
+.photo-add.need{border-color:#f0dfae; background:#fdf6e3; color:#8a6100}
+.day-hint{font-size:14px; color:var(--muted); font-weight:600; margin:-8px 0 16px; text-align:center}
 </style>
 </head>
 <body>
@@ -403,7 +405,7 @@ a.thumb{text-decoration:none}
     <div class="check-note hidden" id="h1Err">Cannot reach the server. Pull down to try again.</div>
 
     <button class="big-btn btn-snap" id="btnSnap" onclick="openCamera()"><span class="ico">📷</span> SNAP RECEIPT</button>
-    <button class="big-btn btn-manual" onclick="openManual()"><span class="ico">✏️</span> NO RECEIPT</button>
+    <button class="big-btn btn-manual" onclick="openManual()"><span class="ico">✏️</span> MANUAL INPUT</button>
     <input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
 
     <div class="section-title">Today</div>
@@ -475,7 +477,7 @@ a.thumb{text-decoration:none}
 
 <!-- ================= H3 · MANUAL ENTRY ================= -->
 <div class="phone helper scr hidden" id="H3">
-  <div class="appbar"><span class="back" onclick="go('H1')">←</span><div><h1>No receipt</h1><div class="sub">Type the money</div></div></div>
+  <div class="appbar"><span class="back" onclick="go('H1')">←</span><div><h1>Manual input</h1><div class="sub">Type the money</div></div></div>
   <div class="body">
     <div class="amt-display"><div class="lbl">How much?</div><div class="val" id="h3Amt">HK$ 0</div></div>
     <div class="pad" id="h3Pad">
@@ -501,8 +503,14 @@ a.thumb{text-decoration:none}
       <button data-split="helper_own" onclick="pick(this)"><span class="ico">👩</span>My food</button>
     </div>
 
+    <label style="display:block;font-size:14px;color:var(--muted);font-weight:700;margin-bottom:6px">When?</label>
+    <div class="field">
+      <div class="inp"><input class="bare" type="date" id="h3Date"></div>
+    </div>
+    <div class="day-hint" id="h3DayHint"></div>
+
     <button class="photo-add" id="h3PhotoBtn" onclick="pickManualPhoto()">
-      <span class="ico">📷</span> Add photo (not must)
+      <span class="ico">📷</span> Add photo
     </button>
     <div class="photo-chip hidden" id="h3PhotoChip">
       <img id="h3Thumb" alt="">
@@ -1167,7 +1175,7 @@ async function startPhotoFlow(file){
   if(!b64){
     clearPhotoState();
     go("H1");
-    $("h1Err").textContent = "Photo too big. Please use NO RECEIPT.";
+    $("h1Err").textContent = "Photo too big. Please use MANUAL INPUT.";
     show($("h1Err"), true);
     return;
   }
@@ -1325,8 +1333,13 @@ let amt = "";
 let clientRef = null;
 let submitting = false;
 
-// Optional photo on the manual screen. Stored, never sent to OCR — she picked
-// NO RECEIPT, so there is nothing to read; this is pure evidence keeping.
+/**
+ * A photo is REQUIRED on the manual screen. It is still never sent to OCR —
+ * she is typing the figures herself; the image is kept purely as evidence.
+ * Flip this to false to make it optional again; nothing else needs changing.
+ */
+const PHOTO_REQUIRED_ON_MANUAL = true;
+
 let h3File = null;      // held for the iOS reason noted in the photo pipeline
 let h3B64 = null;
 
@@ -1351,6 +1364,9 @@ function resetManual(){
   clientRef = null;
   renderAmt();
   clearManualPhoto();
+  $("h3Date").value = todayHK();       // defaults to today, editable for older receipts
+  $("h3Date").max = todayHK();         // the server refuses future dates anyway
+  renderDayHint();
   $("h3Note").value = "";
   document.querySelectorAll("#h3Cats button").forEach(b => b.classList.remove("on"));
   const splits = document.querySelectorAll("#h3Split button");
@@ -1396,7 +1412,20 @@ function clearManualPhoto(){
   $("h3PhotoSize").textContent = "";
   show($("h3PhotoChip"), false);
   show($("h3PhotoBtn"), true);
+  $("h3PhotoBtn").classList.remove("need");
+  $("h3PhotoBtn").innerHTML = '<span class="ico">📷</span> Add photo' +
+    (PHOTO_REQUIRED_ON_MANUAL ? "" : " (not must)");
 }
+
+/** Restates the chosen day in words, so a wrong month is obvious at a glance. */
+function renderDayHint(){
+  const v = $("h3Date").value;
+  if(!v){ $("h3DayHint").textContent = ""; return; }
+  $("h3DayHint").textContent = (v === todayHK()) ? "Today" : fmtDayWk(v);
+}
+
+$("h3Date").addEventListener("change", () => { hideH3Error(); renderDayHint(); });
+$("h3Date").addEventListener("input", () => { hideH3Error(); renderDayHint(); });
 
 $("manualPhotoInput").addEventListener("change", async ev => {
   const file = ev.target.files && ev.target.files[0];
@@ -1422,6 +1451,8 @@ $("manualPhotoInput").addEventListener("change", async ev => {
     $("h3PhotoSize").textContent = Math.round(b64.length * 0.75 / 1024) + " KB";
     show($("h3PhotoChip"), true);
     show($("h3PhotoBtn"), false);
+    btn.classList.remove("need");            // the requirement is satisfied
+    hideH3Error();
 
   }catch(e){
     h3Error("Could not read that photo. Try again without it.");
@@ -1449,6 +1480,17 @@ async function submitManual(){
   const splitBtn = document.querySelector("#h3Split button.on");
   if(!splitBtn){ h3Error("Choose who it is for."); return; }
 
+  const day = $("h3Date").value;
+  if(!day){ h3Error("Choose the day."); return; }
+  if(day > todayHK()){ h3Error("The day cannot be later than today."); return; }
+
+  if(PHOTO_REQUIRED_ON_MANUAL && !h3B64){
+    h3Error("Please add a photo.");
+    $("h3PhotoBtn").classList.add("need");
+    $("h3PhotoBtn").scrollIntoView({ behavior:"smooth", block:"center" });
+    return;
+  }
+
   // Kept across retries on purpose: same ref = the server ignores the double save.
   if(!clientRef) clientRef = newRef();
 
@@ -1460,7 +1502,7 @@ async function submitManual(){
 
   try{
     const data = await api("createTransaction", {
-      date: todayHK(),
+      date: day,
       amount: value,
       category: catBtn.dataset.cat,
       wallet_split: splitBtn.dataset.split,
