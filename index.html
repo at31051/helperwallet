@@ -352,6 +352,11 @@ a.thumb{text-decoration:none}
   font-weight:700; cursor:pointer; font-family:inherit;
 }
 .photo-add.need{border-color:#f0dfae; background:#fdf6e3; color:#8a6100}
+.appbar .logout{
+  flex:none; margin-left:10px; border:1px solid rgba(255,255,255,.35); border-radius:8px;
+  padding:6px 11px; font-size:13px; font-weight:600; cursor:pointer; opacity:.9; white-space:nowrap;
+}
+.appbar .logout.ml-auto{margin-left:auto}
 .day-hint{font-size:14px; color:var(--muted); font-weight:600; margin:-8px 0 16px; text-align:center}
 </style>
 </head>
@@ -856,6 +861,18 @@ function go(id){
 function routeByRole(){
   if(session && session.role === "admin") go("A1");
   else go("H1");
+}
+
+/**
+ * Ends the session on the server as well as the device. If the server call
+ * fails (offline, or an older deployment without "logout"), the local log-out
+ * still happens — the device must never stay signed in because of a network blip.
+ */
+async function logout(){
+  try{ await api("logout", {}); }catch(e){ /* local log-out still counts */ }
+  clearSession();
+  resetPin();
+  go("P0");
 }
 
 /** One place to react to an expired or revoked token. */
@@ -1651,6 +1668,15 @@ document.querySelectorAll(".admin-tabs").forEach(bar => {
     .join("");
 });
 
+// A Log out control on every admin screen's top bar. A1 already pushes its week
+// arrows to the right, so there it simply follows them; elsewhere it takes the
+// right-hand edge itself.
+document.querySelectorAll(".admin .appbar").forEach(bar => {
+  const hasRightGroup = !!bar.querySelector(".ml-auto");
+  bar.insertAdjacentHTML("beforeend",
+    '<span class="logout' + (hasRightGroup ? "" : " ml-auto") + '" onclick="logout()">Log out</span>');
+});
+
 function markAdminTab(id){
   document.querySelectorAll(".admin-tabs button").forEach(b => {
     b.classList.toggle("on", b.dataset.scr === id);
@@ -2121,8 +2147,18 @@ async function saveTopup(){
   }
 
   session = loadSession();
-  if(session) routeByRole();
-  else go("P0");
+
+  if(ADMIN_MODE && !(session && session.role === "admin")){
+    // ?admin=1 on a device that holds a HELPER session (or none): ask for the
+    // admin password rather than silently showing Herna's screens. The helper
+    // session is only replaced if the admin login succeeds, and it never gains
+    // admin access — the password is still required.
+    go("P0");
+  }else if(session){
+    routeByRole();
+  }else{
+    go("P0");
+  }
 })();
 </script>
 </body>
